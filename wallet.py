@@ -78,8 +78,7 @@ class LedgerAPI:
             "proofs": proofs, "amount": amount, "output_data": output_data
         }).json()
         if "error" in promises:
-            print("Failure: {}".format(promises["error"]))
-            return [], []
+            raise Exception(promises["error"])
 
         # Obtain proofs from promises
         fst_proofs = self._construct_proofs(promises["fst"], secrets[:len(promises["fst"])])
