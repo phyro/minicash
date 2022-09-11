@@ -22,3 +22,7 @@ The API contains only three endpoints:
 * `/split` - consumes proofs of promise and creates new promises based on the split amount.
 
 **_NOTE: A serious implementation should at least include wallet level locking to avoid race conditioning updates as well as atomic guarantees in the split function._**
+
+### LICENSE
+
+The code in this repository is under [MIT license](LICENSE.md). Some of the dependencies used use a different license including BSD-3, Apache 2.0 and MPL 2.0. I am no lawyer so I can't advise you if or when you can use this meaning it's up to you to figure out whether you can use this in your project.
