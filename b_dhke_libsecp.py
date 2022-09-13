@@ -35,28 +35,8 @@ import hashlib
 from secp256k1 import PrivateKey, PublicKey
 
 
-# We extend the public and private key to define some operations on points
+# We extend the public key to define some operations on points
 # Picked from https://github.com/WTRMQDev/secp256k1-zkp-py/blob/master/secp256k1_zkp/__init__.py
-def _int_to_bytes(n, length, endianess='big'):
-    try:
-        return n.to_bytes(length, endianess)
-    except:
-        h = '%x' % n
-        s = ('0'*(len(h) % 2) + h).zfill(length*2).decode('hex')
-        return s if endianess == 'big' else s[::-1]
-
-def _bytes_to_int(bt, endianess='big'):
-    try:
-        return int.from_bytes(bt, endianess)
-    except:
-        bt = bt if endianess == 'big' else bt[::-1]
-        bt = bytearray(bt)
-        n=0
-        for m in bt:
-          n *= 256
-          n+=int(m)
-        return n
-
 class PublicKeyExt(PublicKey):
     def __add__(self, pubkey2):
         if isinstance(pubkey2, PublicKey):
@@ -95,26 +75,6 @@ class PublicKeyExt(PublicKey):
     def to_data(self):
         return [self.public_key.data[i] for i in range(64)]
 
-class PrivateKeyExt(PrivateKey):
-    def __add__(self, privkey2):
-      if not isinstance(privkey2, PrivateKey):
-        raise TypeError("Cant summarize privkey and %s"%privkey2.__class__)
-      return PrivateKey(self.tweak_add(privkey2.private_key), raw = True)
-
-    def __mul__(self, privkey2):
-      if isinstance(privkey2, PrivateKey):
-        return PrivateKey(self.tweak_mul(privkey2.private_key), raw = True)
-      else:
-        return PrivateKey(self.tweak_mul(_int_to_bytes(privkey2, 32)), raw = True)
-
-    def __neg__(self):
-      order = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141 #order of secp256k1 group
-      neg_num=_int_to_bytes(order-_bytes_to_int(self.private_key, 'big'), 32, 'big')
-      return PrivateKey(neg_num, raw=True)
-
-    def __sub__(self, privkey2):
-      return self + (-privkey2)
-
 
 # Horrible monkey patch
 PublicKey.__add__ = PublicKeyExt.__add__
@@ -123,11 +83,6 @@ PublicKey.__sub__ = PublicKeyExt.__sub__
 PublicKey.mult = PublicKeyExt.mult
 PublicKey.__eq__ = PublicKeyExt.__eq__
 PublicKey.to_data = PublicKeyExt.to_data
-
-PrivateKey.__add__ = PrivateKeyExt.__add__
-PrivateKey.__neg__ = PrivateKeyExt.__neg__
-PrivateKey.__sub__ = PrivateKeyExt.__sub__
-PrivateKey.__mul__ = PrivateKeyExt.__mul__
 
 
 def hash_to_curve(secret_msg):
