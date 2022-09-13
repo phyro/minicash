@@ -3,7 +3,7 @@
 import random
 
 import requests
-from ecc.curve import secp256k1, Point
+from secp import PublicKey
 import b_dhke
 
 
@@ -16,7 +16,7 @@ class LedgerAPI:
     def _get_keys(url):
         resp = requests.get(url + '/keys').json()
         return {
-            int(amt): Point(val["x"], val["y"], secp256k1)
+            int(amt): PublicKey(bytes.fromhex(val), raw=True)
             for amt, val in resp.items()
         }
 
@@ -34,14 +34,11 @@ class LedgerAPI:
         """Returns proofs of promise from promises."""
         proofs = []
         for promise, (r, secret_msg) in zip(promises, secrets):
-            C_ = Point(promise["C'"]["x"], promise["C'"]["y"], secp256k1)
+            C_ = PublicKey(bytes.fromhex(promise["C'"]), raw=True)
             C = b_dhke.step3_bob(C_, r, self.keys[promise["amount"]])
             proofs.append({
                 "amount": promise["amount"],
-                "C": {
-                    "x": C.x,
-                    "y": C.y,
-                },
+                "C": C.serialize().hex(),
                 "secret_msg": secret_msg,
             })
         return proofs
@@ -50,7 +47,7 @@ class LedgerAPI:
         """Mints new coins and returns a proof of promise."""
         secret_msg = str(random.getrandbits(128))
         B_, r = b_dhke.step1_bob(secret_msg)
-        promise = requests.post(self.url + "/mint", json={"x": str(B_.x), "y": str(B_.y)}).json()
+        promise = requests.post(self.url + "/mint", json={"x": B_.serialize().hex()}).json()
         return self._construct_proofs([promise], [(r, secret_msg)])[0]
 
     def split(self, proofs, amount):
@@ -68,10 +65,7 @@ class LedgerAPI:
             secrets.append((r, secret_msg))
             output_data.append({
                 "amount": output_amt,
-                "B'": {
-                    "x": B_.x,
-                    "y": B_.y,
-                },
+                "B'": B_.serialize().hex()
             })
 
         promises = requests.post(self.url + "/split", json={

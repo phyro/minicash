@@ -32,11 +32,8 @@ If true, C must have originated from Alice
 """
 
 import hashlib
-from ecc.curve import secp256k1, Point
-from ecc.key import gen_keypair
+from secp import PrivateKey, PublicKey
 
-
-G = secp256k1.G
 
 def hash_to_curve(secret_msg):
     """Generates x coordinate from the message hash and checks if the point lies on the curve.
@@ -44,44 +41,55 @@ def hash_to_curve(secret_msg):
     point = None
     msg = secret_msg
     while point is None:
-        x_coord = int(hashlib.sha256(msg).hexdigest().encode("utf-8"), 16)
-        y_coord = secp256k1.compute_y(x_coord)
+        _hash = hashlib.sha256(msg).hexdigest().encode("utf-8")
         try:
-            # Fails if the point is not on the curve
-            point = Point(x_coord, y_coord, secp256k1)
+            # We construct compressed pub which has x coordinate encoded with even y
+            _hash = list(_hash[:33])  # take the 33 bytes and get a list of bytes
+            _hash[0] = 0x02  # set first byte to represent even y coord
+            _hash = bytes(_hash)
+            point = PublicKey(_hash, raw=True)
         except:
-            msg = str(x_coord).encode("utf-8")
+            msg = _hash
 
     return point
+
 
 def step1_bob(secret_msg):
     secret_msg = secret_msg.encode("utf-8")
     Y = hash_to_curve(secret_msg)
-    r, _ = gen_keypair(secp256k1)
-    B_ = Y + r*G
+    r = PrivateKey()
+    B_ = Y + r.pubkey
     return B_, r
 
+
 def step2_alice(B_, a):
-    C_ = a*B_
+    C_ = B_.mult(a)
     return C_
 
 def step3_bob(C_, r, A):
-    C = C_ - r*A
+    C = C_ - A.mult(r)
     return C
 
 def verify(a, C, secret_msg):
     Y = hash_to_curve(secret_msg.encode("utf-8"))
-    return C == a*Y
+    return C == Y.mult(a)
 
 ### Below is a test of a simple positive and negative case
 
-# # Alice private key
-# a, A = gen_keypair(secp256k1)
+# # Alice's keys
+# a = PrivateKey()
+# A = a.pubkey
 # secret_msg = "test"
 # B_, r = step1_bob(secret_msg)
 # C_ = step2_alice(B_, a)
 # C = step3_bob(C_, r, A)
 # print("C:{}, secret_msg:{}".format(C, secret_msg))
-
 # assert verify(a, C, secret_msg)
-# assert verify(a, C + 1*G, secret_msg) == False  # adding 1*G shouldn't pass
+# assert verify(a, C + C, secret_msg) == False  # adding C twice shouldn't pass
+# assert verify(a, A, secret_msg) == False  # A shouldn't pass
+
+# # Test operations
+# b = PrivateKey()
+# B = b.pubkey
+# assert -A -A + A == -A  # neg
+# assert B.mult(a) == A.mult(b)  # a*B = A*b
