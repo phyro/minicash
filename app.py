@@ -1,11 +1,10 @@
 # Don't trust me with cryptography.
 
-import hashlib
-
-from ecc.curve import secp256k1, Point
+from secp import PublicKey
 from flask import Flask, request
 
 from ledger import Ledger
+
 
 # Ledger pubkey
 ledger = Ledger("supersecretprivatekey")
@@ -18,9 +17,7 @@ def keys():
 
 @app.route("/mint", methods=["POST"])
 def mint():
-    x = int(request.json["x"])
-    y = int(request.json["y"])
-    B_ = Point(x, y, secp256k1)
+    B_ = PublicKey(bytes.fromhex(request.json["x"]), raw=True)  # pubkey is compressed
     promise = ledger.mint(B_)
     return promise
 

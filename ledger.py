@@ -6,9 +6,7 @@ Implementation of https://gist.github.com/phyro/935badc682057f418842c72961cf096c
 
 import hashlib
 
-from ecc.curve import secp256k1, Point
-from ecc.key import gen_keypair
-
+from secp import PrivateKey, PublicKey
 import b_dhke
 
 
@@ -22,28 +20,29 @@ class Ledger:
     def _derive_keys(master_key):
         """Deterministic derivation of keys for 2^n values."""
         return {
-            2**i: int(hashlib.sha256((str(master_key) + str(i)).encode("utf-8")).hexdigest().encode("utf-8"), 16)
+            2**i: PrivateKey(hashlib.sha256((str(master_key) + str(i)).encode("utf-8")).hexdigest().encode("utf-8")[:32], raw=True)
             for i in range(20)
         }
 
     def _generate_promises(self, amounts, B_s):
         """Generates promises that sum to the given amount."""
         return [
-            self._generate_promise(amount, Point(B_["x"], B_["y"], secp256k1))
+            self._generate_promise(amount, PublicKey(bytes.fromhex(B_), raw=True))
             for (amount, B_) in zip(amounts, B_s)
         ]
 
     def _generate_promise(self, amount, B_):
         """Generates a promise for given amount and returns a pair (amount, C')."""
         secret_key = self.keys[amount] # Get the correct key
-        return {"amount": amount, "C'": b_dhke.step2_alice(B_, secret_key)}
+        C_ = b_dhke.step2_alice(B_, secret_key)
+        return {"amount": amount, "C'": C_.serialize().hex()}
 
     def _verify_proof(self, proof):
         """Verifies that the proof of promise was issued by this ledger."""
         if proof["secret_msg"] in self.used_proofs:
             raise Exception("Already spent. Secret msg:{}".format(proof["secret_msg"]))
         secret_key = self.keys[proof["amount"]] # Get the correct key to check against
-        C = Point(proof["C"]["x"], proof["C"]["y"], secp256k1)
+        C = PublicKey(bytes.fromhex(proof["C"]), raw=True)
         return b_dhke.verify(secret_key, C, proof["secret_msg"])
 
     def _verify_outputs(self, total, amount, output_data):
@@ -59,7 +58,8 @@ class Ledger:
         secret_msgs = [p["secret_msg"] for p in proofs]
         if len(secret_msgs) != len(list(set(secret_msgs))):
             return False
-        B_xs = [od["B'"]["x"] for od in output_data]
+        # TODO: think whether this can be an inflation vector somehow
+        B_xs = [od["B'"] for od in output_data]
         if len(B_xs) != len(list(set(B_xs))):
             return False
         return True
@@ -101,7 +101,7 @@ class Ledger:
     def get_pubkeys(self):
         """Returns public keys for possible amounts."""
         return {
-            amt: self.keys[amt] * secp256k1.G
+            amt: self.keys[amt].pubkey.serialize().hex()
             for amt in [2**i for i in range(20)]
         }
 
