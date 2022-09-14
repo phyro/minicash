@@ -101,11 +101,21 @@ def hash_to_curve(secret_msg):
 
     # return point
 
-    # TODO: This one needs to be implemented, this isn't NUMS
+    point = None
     msg = secret_msg
-    _hash = hashlib.sha256(msg).hexdigest().encode("utf-8")[:32]
-    priv = PrivateKey(_hash)
-    return priv.pubkey
+    while point is None:
+        _hash = hashlib.sha256(msg).hexdigest().encode("utf-8")
+        try:
+            # We construct compressed pub (even) which has x coordinate encoded with even y
+            _hash = list(_hash[:33])  # take the 33 bytes and get a list of bytes
+            _hash[0] = 0x02  # set first byte to represent even y coord
+            _hash = bytes(_hash)
+            # print(_hash)
+            point = PublicKey(_hash, raw=True)
+        except:
+            msg = _hash
+
+    return point
 
 
 def step1_bob(secret_msg):
@@ -163,3 +173,9 @@ print("C:{}, secret_msg:{}".format(C, secret_msg))
 assert verify(a, C, secret_msg)
 assert verify(a, C + C, secret_msg) == False  # adding C twice shouldn't pass
 assert verify(a, A, secret_msg) == False  # A shouldn't pass
+
+# Test operations
+b = PrivateKey()
+B = b.pubkey
+assert -A -A + A == -A  # neg
+assert B.mult(a) == A.mult(b)  # a*B = A*b
